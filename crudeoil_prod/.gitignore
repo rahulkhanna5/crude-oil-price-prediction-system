@@ -1,0 +1,6 @@
+# Ignore .env file
+.env
+
+# Ignore model files
+models/*.h5
+models/*.pkl
