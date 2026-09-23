@@ -1,0 +1,20 @@
+# Secrets: never commit API keys
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Model files and notebook caches
+models/
+*.joblib
+*.h5
+*.pkl
+
+# OS / editor / tooling
+.DS_Store
+.vercel
+.claude/

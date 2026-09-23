@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crude Outlook</title>
+  <meta name="description" content="Daily 7-day forecasts for WTI and Brent crude oil prices, with an honest scorecard of how accurate the model has been." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 3C16 3 6 15 6 21a10 10 0 0 0 20 0C26 15 16 3 16 3Z' fill='%23b8650f'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-asset="wti">
+  <header class="topbar wrap">
+    <a class="wordmark" href="/">Crude Outlook</a>
+    <div class="asset-switch" role="group" aria-label="Choose a benchmark">
+      <button type="button" data-pick="wti" aria-pressed="true">WTI</button>
+      <button type="button" data-pick="brent" aria-pressed="false">Brent</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="headline">
+      <p class="eyebrow"><span data-field="name">WTI Crude</span> · <span data-field="description"></span> · USD per barrel</p>
+      <h1 id="headline">Next week's oil price, with the error bars left on.</h1>
+
+      <div class="readout">
+        <div class="readout-now">
+          <span class="label">Last close <span data-field="last_date"></span></span>
+          <span class="big" data-field="last_price">—</span>
+          <span class="delta" data-field="day_change"></span>
+        </div>
+        <div class="readout-next">
+          <span class="label">Forecast for <span data-field="h7_date"></span></span>
+          <span class="big accent" data-field="h7_price">—</span>
+          <span class="delta" data-field="h7_range"></span>
+        </div>
+      </div>
+
+      <figure class="chart-frame">
+        <div id="chart" class="chart" role="img" aria-label="Price history and 7-day forecast"></div>
+        <figcaption class="legend">
+          <span><i class="key key-line"></i>Closing price</span>
+          <span><i class="key key-forecast"></i>Forecast</span>
+          <span><i class="key key-band"></i>Likely range (8 in 10 days landed inside)</span>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="block" aria-labelledby="days-title">
+      <h2 id="days-title">Day by day</h2>
+      <p class="lede">Each row comes from a separate model trained for that exact number of trading days ahead. Weekends are skipped; market holidays are not.</p>
+      <div class="table-scroll">
+        <table class="days">
+          <thead>
+            <tr><th scope="col">Trading day</th><th scope="col">Date</th><th scope="col" class="num">Forecast</th><th scope="col" class="num">Likely range</th><th scope="col" class="num">vs. today</th></tr>
+          </thead>
+          <tbody id="days-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="score-title">
+      <h2 id="score-title">How good is it, really?</h2>
+      <p class="lede">We held back the most recent <span data-field="test_days"></span> trading days (since <span data-field="test_start"></span>) and never showed them to the models during training. Here's how the forecasts did on those days, compared with the laziest possible guess: <em>the price won't change</em>.</p>
+
+      <div class="scorecards">
+        <article class="score" data-horizon="1"></article>
+        <article class="score" data-horizon="7"></article>
+      </div>
+
+      <figure class="chart-frame small">
+        <div id="backtest" class="chart" role="img" aria-label="Next-day forecasts compared with actual prices over the test period"></div>
+        <figcaption class="legend">
+          <span><i class="key key-line"></i>Actual close</span>
+          <span><i class="key key-pred"></i>What the model predicted the day before</span>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="block" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <ol class="steps">
+        <li>
+          <h3>Download</h3>
+          <p>Every weekday evening a GitHub Action downloads five years of daily prices for WTI, Brent, natural gas, the US dollar, the S&amp;P 500, the VIX and 10-year Treasury yields from Yahoo Finance.</p>
+        </li>
+        <li>
+          <h3>Build features</h3>
+          <p>Prices become signals: recent returns, volatility, RSI, MACD, distance from moving averages, the Brent–WTI spread and moves in related markets.</p>
+        </li>
+        <li>
+          <h3>Train and test</h3>
+          <p>Ridge regression, XGBoost and LightGBM predict the percentage change 1 to 7 days ahead. Their average is shrunk toward "no change" as much as validation data says it should be, then scored on held-out recent data.</p>
+        </li>
+        <li>
+          <h3>Publish</h3>
+          <p>The results are saved to <code>forecast.json</code> and committed to GitHub, and Vercel redeploys this page automatically.</p>
+        </li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>Educational project, not financial advice. Futures prices (CL=F, BZ=F) via Yahoo Finance. Last model run <span data-field="generated_at"></span>.</p>
+    <p><a href="https://github.com/rahulkhanna5/crude-oil-price-prediction-system">Source code on GitHub</a></p>
+  </footer>
+
+  <p id="load-error" class="load-error wrap" hidden></p>
+  <script src="app.js"></script>
+</body>
+</html>

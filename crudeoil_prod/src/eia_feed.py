@@ -1,47 +1,54 @@
-import os
-import requests
+"""Optional: weekly US crude oil inventories from the EIA (US Energy Information Administration).
+
+Get a free key at https://www.eia.gov/opendata/register.php and put it in
+crudeoil_prod/.env as EIA_API_KEY=... . Without a key this feed is skipped.
+"""
+
 import pandas as pd
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
+import requests
 
-load_dotenv(dotenv_path="/Users/rahulkhanna/Desktop/crude-oil-price-prediction-system/crudeoil_prod/.env")
+from .utils import get_key, log
 
-EIA_API_KEY = os.getenv("EIA_API_KEY")
-EIA_URL = "https://api.eia.gov/v2/seriesid/PET.RWTC.D?api_key=Bhb35DSi66KnNcDKHxHUncNNs7jm5qox0CiJOeYv&start=2020-01-01&end=2024-12-31&frequency=daily"  # FIX 1: correct endpoint
+EIA_URL = "https://api.eia.gov/v2/petroleum/stoc/wstk/data/"
+# Weekly US ending stocks of crude oil excluding the Strategic Petroleum Reserve
+INVENTORY_SERIES = "WCESTUS1"
 
-print("API KEY:", EIA_API_KEY)
 
-def fetch_eia_wti(start: str, end: str) -> dict:
+def get_eia_inventories(start: str) -> pd.DataFrame | None:
+    """Return a DataFrame with a `crude_inventory` column, or None if unavailable."""
+    api_key = get_key("EIA_API_KEY")
+    if api_key is None:
+        log("EIA", "No EIA_API_KEY set, skipping inventories.")
+        return None
+
     params = {
-        "api_key": EIA_API_KEY,  # FIX 2: variable, not string "EIA_API_KEY"
-        "start": start,          # FIX 3: no .replace("-", ""), EIA wants YYYY-MM-DD
-        "end": end,
-        "frequency": "daily",
+        "api_key": api_key,
+        "frequency": "weekly",
+        "data[0]": "value",
+        "facets[series][]": INVENTORY_SERIES,
+        "start": start,
+        "sort[0][column]": "period",
+        "sort[0][direction]": "asc",
+        "length": 5000,
     }
-    response = requests.get(EIA_URL, params=params, timeout=10)
-    print(response.url)
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = requests.get(EIA_URL, params=params, timeout=30)
+        response.raise_for_status()
+        records = response.json()["response"]["data"]
+    except Exception as exc:  # network problems or a bad key shouldn't stop the forecast
+        log("EIA", f"Request failed, skipping inventories: {exc}")
+        return None
 
-def parse_to_df(raw_json: dict) -> pd.DataFrame:
-    data_list = raw_json["response"]["data"]
-    df = pd.DataFrame(data_list)[["period", "value"]]
-    df.rename(columns={"period": "date", "value": "wti_price"}, inplace=True)
-    df["date"] = pd.to_datetime(df["date"])
-    df["wti_price"] = pd.to_numeric(df["wti_price"], errors="coerce")
-    df.dropna(inplace=True)
-    df.sort_values("date", ascending=True, inplace=True)
-    df.reset_index(drop=True, inplace=True)
+    if not records:
+        log("EIA", "No inventory data returned.")
+        return None
+
+    df = pd.DataFrame(records)[["period", "value"]]
+    df["period"] = pd.to_datetime(df["period"])
+    df["crude_inventory"] = pd.to_numeric(df["value"], errors="coerce")
+    df = df.set_index("period")[["crude_inventory"]].dropna().sort_index()
+    # EIA publishes each week's number the following Wednesday. Shift the dates
+    # forward so the model never "sees" a number before it was public.
+    df.index = df.index + pd.Timedelta(days=5)
+    log("EIA", f"{len(df):,} weekly inventory reports")
     return df
-
-def get_live_data(days_back: int = 365) -> pd.DataFrame:
-    end = datetime.today().strftime("%Y-%m-%d")
-    start = (datetime.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-    raw = fetch_eia_wti(start, end)
-    return parse_to_df(raw)
-
-if __name__ == "__main__":
-    df = get_live_data(days_back=180)
-    print(df.head(10))
-    print(f"\nShape: {df.shape}")
-    print(f"Latest price: ${df['wti_price'].iloc[-1]} on {df['date'].iloc[-1].date()}")

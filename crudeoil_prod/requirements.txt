@@ -1,0 +1,9 @@
+# Install with: pip install -r crudeoil_prod/requirements.txt
+pandas>=2.1
+numpy>=1.26
+scikit-learn>=1.4
+xgboost>=2.0
+lightgbm>=4.0
+yfinance>=0.2.54
+requests>=2.31
+python-dotenv>=1.0

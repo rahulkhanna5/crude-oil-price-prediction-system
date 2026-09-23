@@ -1,0 +1,51 @@
+# Runs the forecasting pipeline every weekday after US oil markets close,
+# then commits the new web/data/forecast.json. Vercel sees the new commit
+# and redeploys the website automatically.
+name: Daily forecast
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # 22:30 UTC, Monday to Friday
+  workflow_dispatch:           # adds a "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write              # needed to push the updated forecast
+
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: crudeoil_prod/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r crudeoil_prod/requirements.txt
+
+      - name: Train models and write forecast
+        env:
+          # Optional: add these under Settings -> Secrets and variables -> Actions
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python crudeoil_prod/app.py
+
+      - name: Commit the new forecast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data/forecast.json
+          if git diff --cached --quiet; then
+            echo "Forecast unchanged, nothing to commit."
+          else
+            git commit -m "Update forecast $(date -u +%Y-%m-%d)"
+            git push
+          fi
